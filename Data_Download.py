@@ -50,7 +50,7 @@ def extractdata (p, start, end, freq):
             output = output[output.index.dayofweek < 5]
     elif freq in Weekly:
         D = freq[-3:] # Get the day of the week, last 3 chars in freq
-        NumDay = Days.index(D)
+        NumDay = Days.index(D)# Get the number of the day of the week to re-index
         output = output[output.index.dayofweek == NumDay]
     else:
         print ("extractdata: Invalid Frequency")
@@ -80,7 +80,7 @@ def plotlogreturns (P, title):
     # Plot Chart of Price Log Returns 
     Chart = np.log (P).plot(figsize=LogRet_Dims , title="Cummulative Log Returns of "+title)
     fig = Chart.get_figure()
-    FileName = title+"Log_Returns_"+".png"
+    FileName = title+"_Log_Returns"+".png"
     os.chdir(OutPutFolder)
     fig.savefig(FileName)
     showplot()
@@ -105,14 +105,14 @@ def plothistograms (R, title):
         ax.set_ylabel('Frequency', size= 8)
         i+=1
     #
-    FileName = title+"Histogram_"+'.png'
+    FileName = title+"_Histogram"+'.png'
     os.chdir(OutPutFolder)
     plt.savefig(FileName)
     showplot()
     plt.close()
     return
 #
-def plotseries (T, S, Title):
+def plotseries (S, Title):
     # Plot Histogram of Log Returns 
     plt.figure(figsize=Series_Dims)
     i=1
@@ -122,12 +122,12 @@ def plotseries (T, S, Title):
         ax =  plt.subplot(n, n, i)
         ax.plot(S[r],  color = 'blue')
         # Title and labels
-        ax.set_title(Title+' '+T+'--> '+r , size = 14)
+        ax.set_title(Title+' '+'--> '+r , size = 14)
         ax.set_xlabel('Date', size = 15)
         ax.set_ylabel(r, size= 15)
         i+=1
     #
-    FileName = Title+'_'+T+'.png'
+    FileName = Title+'.png'
     os.chdir(OutPutFolder)
     plt.savefig(FileName)
     showplot()
@@ -238,7 +238,7 @@ def descriptive (Prices, Start, End, Frequency):
     return [Start, End, descrip, Correl, Covar]
 
 # Run Descriptive Stats for Each Type of Price data. Price Data uses **kwargs (Keyword Arguments)
-def ProcessPrices (Start, End, Frequency, **PriceData):
+def PriceStats (Start, End, Frequency, **PriceData):
     for File, Prices in PriceData.items(): 
         Stats = descriptive(Prices, Start, End, Frequency)
         SaveExcel (File+"_"+Start+'_'+End, Stats = Stats[2], Corr = Stats[3],CoVar= Stats[4]) 
@@ -251,9 +251,6 @@ def ProcessPrices (Start, End, Frequency, **PriceData):
         plotheatmap (Stats[3], File+"_"+ReturnFrequencyText+"_"+Start+"_"+End)
     return
 
-
-
-# In[]
 
 ################################################################
 #  MAIN PROGRAM STARTS HERE
@@ -334,6 +331,7 @@ Var_Factor = Ret_Factor
 
 
 # UPLOAD DATA FROM EXCEL
+print("Loading Bloomberg/Excel Inputs")
 os.chdir(InPutFolder)
 %time ALL_Factor = LoadExcel (Factor_Sheet, FactorTab,  0,  3)
 %time ALL_FX = LoadExcel (FX_Sheet,  FX_Tab,  0,  3) 
@@ -373,16 +371,25 @@ FX_Headers = ['TRY','BRL']#,'EURPLN','EUR']
 BMW = ['_TRY','_BRL'] #,'_EURPLN','_EUR']
 LCH = ['xTRY','xBRL'] #,'xPLN'],'xEUR']
 
-
 FX_Prices = pd.DataFrame(ALL_FX[FX_Headers]).copy()
 LocCurrs = pd.DataFrame(ALL_LocCurr[LCH]).copy()
 #BenchMarkWeights = pd.DataFrame(ALL_BenchMark[BMW]).copy()
 
 
-ProcessPrices (Start, End, ReturnFrequency, FX_Currencies = FX_Prices, Factors = Factor_Prices, Benchmarks = BenchMark_Prices)
-`
+Start = '1-1-2017'
+End = '12-31-2018'
+ReturnFrequency = 'D'  #   D, W-WED... 
+print("Processing Price Data:", Start, End, ReturnFrequency)
+%time PriceStats (Start, End, ReturnFrequency, FX_Currencies = FX_Prices) #, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, LocalCurrency = LocCurrs)
 
 
+# In[]
+Start = '1-1-2008'
+End = '12-31-2018'
+ReturnFrequency = 'D'  #   D, W-WED... 
+
+print("Processing Price Data:", Start, End, ReturnFrequency)
+%time PriceStats (Start, End, ReturnFrequency, FX_Currencies = FX_Prices) #, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, LocalCurrency = LocCurrs)
 
 # In[]:
 
@@ -393,12 +400,13 @@ ProcessPrices (Start, End, ReturnFrequency, FX_Currencies = FX_Prices, Factors =
 # We will work with windows of 2 years, which provide with around 100 weekly returns.
 # We will roll the window from the start of our dataset to be able to trak the evolution over time of each and everyone of the stats calculated (mean returns, correlations, skew....)
 
-def WindowStats (returns, freq, WindowInYears):
+def WindowStats (Prices, Start, End, Freq, WindowInYears):
     #
     # Get length of window (in days units) to figure out how many rolling windows to run
-    n , ReturnFrequencyText = getreturnperiod (freq)
+    n , ReturnFrequencyText = getreturnperiod (Freq)
     Window = int(WindowInYears*Days_in_Trading_Year/ n)
-    NumberOfWindows = len(returns.index) - Window
+    RangePrices = extractdata (Prices, Start, End, Freq)
+    NumberOfWindows = len(RangePrices.index) - Window
     if NumberOfWindows <= 0:
         print ('WindowStats: Not enough dates for year window' )
         return []
@@ -411,12 +419,12 @@ def WindowStats (returns, freq, WindowInYears):
         Corr  = []
         for i in range(NumberOfWindows):
             # Set the Date Ranges of the Window
-            start = returns.index[i].strftime('%Y-%m-%d')
-            end = returns.index[i+Window].strftime('%Y-%m-%d')
+            win_start = RangePrices.index[i].strftime('%Y-%m-%d')
+            win_end = RangePrices.index[i+Window].strftime('%Y-%m-%d')
             # From the whole price series, extract the data in the window range at the specified frequency.
-            WindowData = extractdata (returns, start, end, freq)
+            WindowData = extractdata (RangePrices.copy(), win_start, win_end, Freq)
             # Get the descriptive stats for the returns in the window
-            one_run = descriptive('', WindowData, freq)
+            one_run = descriptive(WindowData, win_start, win_end, Freq)
             # Add output of the run to the list of outputs
             Start_Dates = Start_Dates + [one_run[0]]
             End_Dates = End_Dates + [one_run[1]]
@@ -426,7 +434,8 @@ def WindowStats (returns, freq, WindowInYears):
         # Return the Start/End dates of the window, the series to stat matrices
         Out1 = Start_Dates[0]
         Out2 = End_Dates[0]
-        Out3 = pd.date_range(start=Start_Dates[0], end=Start_Dates[-1], periods = len(Stats[0]), freq = freq)
+        Out3 = pd.date_range(start=Start_Dates[0], end=Start_Dates[-1], 
+                             periods = len(End_Dates))
         Out4 = Stats
         Out5 = CoVar
         Out6 = Corr
@@ -473,31 +482,31 @@ def GetCorrSeries (ticker, dates, corrdata):
 # In[]:
 ################################################################
 #  Build the Historical Timeseries
-%time Start,End, EndDates, Stats, CoVars, Correls = WindowStats(FX_Returns, ReturnFrequency, 2)
+Start = '1-3-1999'
+End = '12-31-2018'
+ReturnFrequency = 'W-WED'  #   D, W-WED... 
+n , ReturnFrequencyText = getreturnperiod (ReturnFrequency)
+WindowSize = 2 #Years
+%time Start_Dates,End_Dates, Dates_Index, Stats, CoVars, Correls = WindowStats(FX_Prices, Start, End, ReturnFrequency, WindowSize)
 
-
+# In[]:
+################################################################
+# Tick = 'BRL'
 # Generate Rolling Statistics and Rolling Correlations for All TICKERS
-for Tick in FX_Returns.columns:# ###
-    writer=pd.ExcelWriter('Rolling_'+Tick+".xlsx", engine='xlsxwriter')
-    StatSeries = GetStatSeries (Tick, EndDates, Stats)
-    StatSeries.to_excel(writer, ReturnFrequencyText+' Rolling_Statistics')
-    plotseries (Tick, StatSeries, ReturnFrequencyText+" Rolling_Statistics")
+for Tick in FX_Prices.columns: 
+    writer=pd.ExcelWriter(Tick+'_Rolling_Statistics_'+str(WindowSize)+"Y_"+ReturnFrequencyText+"_"+"_"+Start+"_"+End+".xlsx", engine='xlsxwriter')
     #
-    CorrSeries = GetCorrSeries (Tick, EndDates, Correls)
-    CorrSeries.to_excel(writer, ReturnFrequencyText+'_Rolling_Correlations')
-    plotseries (Tick, CorrSeries, ReturnFrequencyText+"_Rolling_Correlations")
-    plothistograms (CorrSeries, Tick+"_-_"+ReturnFrequencyText+"_Rolling_Correlation")
+    StatSeries = GetStatSeries (Tick, Dates_Index, Stats)
+    StatSeries.to_excel(writer, "Rolling Statistics")
+    plothistograms (StatSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+'Y'+" Rolling Statistics")
+    plotseries (StatSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Statistics")
+    #
+    CorrSeries = GetCorrSeries (Tick, Dates_Index, Correls)
+    CorrSeries.to_excel(writer, "Rolling Correlations")
+    plotseries (CorrSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Correlations")
+    plothistograms (CorrSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Correlations")
     os.chdir(OutPutFolder)
     writer.save()
 #
 
-# In[]:
-
-################################################################
-## Show the data for the Brazilian Real
-Tick = 'BRL'
-Charts = StatSeries.plot(figsize=(6,12), subplots=True, title=Tick+": Rolling Statistics")
-Chart = StatSeries.hist(figsize=(10,10),bins=50)
-Chart = CorrSeries.plot(figsize=(10,36), subplots=True, title=Tick+": Rolling Correlations")
-Chart = CorrSeries.hist(figsize=(12,12),bins=50)
 
