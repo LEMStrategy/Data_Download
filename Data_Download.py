@@ -167,8 +167,8 @@ def getreturnperiod (f):
     return n , FrequencyText
 
 # Invert FX Quotes 
-def invertFX (p):
-    return (1/p)
+def invert (p):
+    return (100/p)  # Invert FX quotes, multiply by 100 to avoid penny pricing... 
 
 #  Normalize timeseries to re-base start at 1 (great for plottong Log return)
 def normalize (P):
@@ -241,14 +241,14 @@ def descriptive (Prices, Start, End, Frequency):
 def PriceStats (Start, End, Frequency, **PriceData):
     for File, Prices in PriceData.items(): 
         Stats = descriptive(Prices, Start, End, Frequency)
-        SaveExcel (File+"_"+Start+'_'+End, Stats = Stats[2], Corr = Stats[3],CoVar= Stats[4]) 
+        SaveExcel (File+"_"+Frequency+"_"+Start+'_'+End, Stats = Stats[2], Corr = Stats[3],CoVar= Stats[4]) 
         # Plot the Evolution of Log Prices
         NormPrices = normalize(Prices.copy())
-        plotlogreturns (NormPrices,(File+"_"+ReturnFrequencyText+"_"+Start+"_"+End))
+        plotlogreturns (NormPrices,(File+"_"+Frequency+"_"+Start+"_"+End))
         # Plot Histogram of Log Returns
         Returns = getreturns (NormPrices)
-        plothistograms (Returns, File+"_"+ReturnFrequencyText+"_"+Start+"_"+End)
-        plotheatmap (Stats[3], File+"_"+ReturnFrequencyText+"_"+Start+"_"+End)
+        plothistograms (Returns, File+"_"+Frequency+"_"+Start+"_"+End)
+        plotheatmap (Stats[3], File+"_"+Frequency+"_"+Start+"_"+End)
     return
 
 
@@ -266,7 +266,7 @@ InPutFolder = HomeFolder+"/DataInPut"
 os.chdir(HomeFolder)   # Windows 10
 # os.chdir('//Volumes/Data/Exchange')  # MAc OS X
 # File Name with EM FX Currency Data, Benchmark Index/Weights, Matrix Shrinkage Factors.
-FX_Sheet = "_FX_Rates.xlsx"
+FX_Sheet = "_Alt_FX_Rates.xlsx"
 FX_Tab = "FX_Rates"
 # Factors
 Factor_Sheet = "_Factors.xlsx"
@@ -283,6 +283,8 @@ LocCurrTab = "LocCurr_Index"
 Start = '1-1-2017'
 End = '12-31-2018'
 ReturnFrequency = 'D'  #   D, W-WED... 
+#Dataset = "Large"
+Dataset = "Small"
 
 Days_in_Trading_Year = 252
 ReturnPeriod = 5  # Use weekly Returns assuming data without weekends, ie a 5 day week
@@ -325,11 +327,7 @@ Ret_Factor =  Days_in_Trading_Year / n
 Std_Factor = np.sqrt ( Ret_Factor )
 Var_Factor = Ret_Factor 
 
-
-
-# In[]
-
-
+##############################################################################
 # UPLOAD DATA FROM EXCEL
 print("Loading Bloomberg/Excel Inputs")
 os.chdir(InPutFolder)
@@ -338,6 +336,7 @@ os.chdir(InPutFolder)
 %time ALL_LocCurr = LoadExcel (LocCurr_Sheet, LocCurrTab, 0, 3)
 %time ALL_BenchMark = LoadExcel (Benchmark_Sheet, BenchmarkTab,  0, 3)
 
+ALL_FX= invert(ALL_FX) # Switch from indirect to direct quotes
 
 # In[]
 
@@ -354,42 +353,52 @@ Factor_Prices = pd.DataFrame(ALL_Factor[Factor_Headers]).copy()
 BenchMark_Headers = ['EM22_FX','BBRG_8EM','BBRG_ASIA','BBRG_EMEA','BBRG_G10','BBRG_Latam']
 BenchMark_Prices =  pd.DataFrame(ALL_BenchMark[BenchMark_Headers]).copy()
 
-
 # USE Large or Small Currency Dataset
-#FX_Headers = ['ARS','CNH','RUB','SGD','TRY','ZAR','BRL','CLP','COP','IDR','INR','KRW','MYR','PEN','PHP','THB','TWD','MXN','EURHUF','EURCZK','EURPLN','EURRON']
-#
-#BMW1 = ['_ARS','_CNH','_CZK','_PLN','_RON','_RUB','_SGD','_TRY','_ZAR','_BRL','_CLP']   # Spyder can't handle long lines of code??? Jupyter notebook worked fine...
-#BMW2 = ['_COP','_IDR','_INR','_KRW','_MYR','_PEN','_PHP','_THB','_TWD','_MXN','_HUF']
-#BMW  = BMW1 + BMW2
-#
-#LCH1 = ['xARS','xCNH','xRUB','xSGD','xTRY','xZAR','xBRL','xCLP','xCOP','xIDR','xINR']
-#LCH2 = ['xKRW','xMYR','xPEN','xPHP','xTHB','xTWD','xMXN','xHUF','xCZK','xPLN','xRON']
-#LCH  = LCH1 + LCH2
-#
-#if Dataset == "Small"  : # Spyder: what's wrong with this IF?? Jupyter notebook worked fine
-FX_Headers = ['TRY','BRL']#,'EURPLN','EUR']
-BMW = ['_TRY','_BRL'] #,'_EURPLN','_EUR']
-LCH = ['xTRY','xBRL'] #,'xPLN'],'xEUR']
-
+if Dataset == "Large" :     
+    FX_Headers = ['ARS','CNH','RUB','SGD','TRY',
+                  'ZAR','BRL','CLP','COP','IDR',
+                  'INR','KRW','MYR','PEN','PHP',
+                  'THB','TWD','MXN',
+                  'EURHUF','EURCZK','EURPLN','EURRON']
+    BMW1 = ['_ARS','_CNH','_CZK','_PLN','_RON','_RUB',
+            '_SGD','_TRY','_ZAR','_BRL','_CLP']
+    BMW2 = ['_COP','_IDR','_INR','_KRW','_MYR','_PEN',
+            '_PHP','_THB','_TWD','_MXN','_HUF']
+    BMW  = BMW1 + BMW2
+    
+    LCH1 = ['xARS','xCNH','xRUB','xSGD','xTRY','xZAR',
+            'xBRL','xCLP','xCOP','xIDR','xINR']
+    LCH2 = ['xKRW','xMYR','xPEN','xPHP','xTHB','xTWD',
+            'xMXN','xHUF','xCZK','xPLN','xRON']
+    LCH  = LCH1 + LCH2
+elif Dataset == "Small": 
+        FX_Headers = ['TRY','BRL','MXN','ZAR','EUR','GBP']
+        BMW = ['_TRY','_BRL','_MXN','_ZAR']
+        LCH = ['xTRY','xBRL','xMXN','xZAR']
+else:
+        print("DATASET ERROR.")
+    
 FX_Prices = pd.DataFrame(ALL_FX[FX_Headers]).copy()
 LocCurrs = pd.DataFrame(ALL_LocCurr[LCH]).copy()
 #BenchMarkWeights = pd.DataFrame(ALL_BenchMark[BMW]).copy()
 
+# In[]
 
 Start = '1-1-2017'
 End = '12-31-2018'
 ReturnFrequency = 'D'  #   D, W-WED... 
+n , ReturnFrequencyText = getreturnperiod (ReturnFrequency)
 print("Processing Price Data:", Start, End, ReturnFrequency)
-%time PriceStats (Start, End, ReturnFrequency, FX_Currencies = FX_Prices) #, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, LocalCurrency = LocCurrs)
+%time PriceStats (Start, End, ReturnFrequency, FX = FX_Prices, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, L_Cur = LocCurrs)
 
 
 # In[]
-Start = '1-1-2008'
-End = '12-31-2018'
-ReturnFrequency = 'D'  #   D, W-WED... 
-
-print("Processing Price Data:", Start, End, ReturnFrequency)
-%time PriceStats (Start, End, ReturnFrequency, FX_Currencies = FX_Prices) #, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, LocalCurrency = LocCurrs)
+#Start = '1-1-2008'
+#End = '12-31-2018'
+#ReturnFrequency = 'W-WED'  #   D, W-WED 
+#n , ReturnFrequencyText = getreturnperiod (ReturnFrequency)
+#print("Processing Price Data:", Start, End, ReturnFrequency)
+#%time PriceStats (Start, End, ReturnFrequency, FX_Currencies = FX_Prices, Factors = Factor_Prices, Benchmarks = BenchMark_Prices, LocalCurrency = LocCurrs)
 
 # In[]:
 
@@ -429,17 +438,17 @@ def WindowStats (Prices, Start, End, Freq, WindowInYears):
             Start_Dates = Start_Dates + [one_run[0]]
             End_Dates = End_Dates + [one_run[1]]
             Stats = Stats + [one_run[2]]
-            CoVar = CoVar + [one_run[3]]
-            Corr = Corr + [one_run[4]]
+            Corr = Corr + [one_run[3]]
+            CoVar = CoVar + [one_run[4]]
         # Return the Start/End dates of the window, the series to stat matrices
         Out1 = Start_Dates[0]
         Out2 = End_Dates[0]
-        Out3 = pd.date_range(start=Start_Dates[0], end=Start_Dates[-1], 
+        Out3 = pd.date_range(start=End_Dates[0], end=End_Dates[-1], 
                              periods = len(End_Dates))
         Out4 = Stats
-        Out5 = CoVar
-        Out6 = Corr
-        return  Out1, Out2, Out3, Out4, Out5, Out6 
+        Out5 = Corr
+        Out6 = CoVar
+        return  Out1, Out2, Out3, Out4, Out5, Out6
 
 #  Rolling Statistical Data Per Currency
 def GetStatSeries (ticker, dates, statdata):
@@ -482,12 +491,13 @@ def GetCorrSeries (ticker, dates, corrdata):
 # In[]:
 ################################################################
 #  Build the Historical Timeseries
-Start = '1-3-1999'
+Start = '1-1-2016'
 End = '12-31-2018'
-ReturnFrequency = 'W-WED'  #   D, W-WED... 
+ReturnFrequency = 'D'  #   D, W-WED... 
 n , ReturnFrequencyText = getreturnperiod (ReturnFrequency)
-WindowSize = 2 #Years
-%time Start_Dates,End_Dates, Dates_Index, Stats, CoVars, Correls = WindowStats(FX_Prices, Start, End, ReturnFrequency, WindowSize)
+WindowDays = 120
+WindowSize = np.round(WindowDays /252, decimals=2) #Years
+%time Start_Dates,End_Dates, Dates_Index, Stats, Correls, CoVars = WindowStats(FX_Prices, Start, End, ReturnFrequency, WindowSize)
 
 # In[]:
 ################################################################
@@ -498,13 +508,13 @@ for Tick in FX_Prices.columns:
     #
     StatSeries = GetStatSeries (Tick, Dates_Index, Stats)
     StatSeries.to_excel(writer, "Rolling Statistics")
-    plothistograms (StatSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+'Y'+" Rolling Statistics")
-    plotseries (StatSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Statistics")
+    plothistograms (StatSeries, Tick+"_"+ReturnFrequency+str(WindowSize)+'Y'+" Rolling Statistics")
+    plotseries (StatSeries, Tick+"_"+ReturnFrequency+str(WindowSize)+"Y"+" Rolling Statistics")
     #
     CorrSeries = GetCorrSeries (Tick, Dates_Index, Correls)
     CorrSeries.to_excel(writer, "Rolling Correlations")
-    plotseries (CorrSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Correlations")
-    plothistograms (CorrSeries, Tick+"_"+ReturnFrequencyText+str(WindowSize)+"Y"+" Rolling Correlations")
+    plotseries (CorrSeries, Tick+"_"+ReturnFrequency+str(WindowSize)+"Y"+" Rolling Correlations")
+    plothistograms (CorrSeries, Tick+"_"+ReturnFrequency+str(WindowSize)+"Y"+" Rolling Correlations")
     os.chdir(OutPutFolder)
     writer.save()
 #
